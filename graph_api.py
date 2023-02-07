@@ -5,6 +5,10 @@ from csv import DictReader
 import requests
 from bottle import default_app, hook, request, response, route, run, template
 
+ENV = os.environ.get('ACTIVE_LISTINGS_ENV', 'development')
+
+BASE_URL = '/active-listings' if ENV == 'production' else ''
+
 DATA_URL = 'https://econdata.s3-us-west-2.amazonaws.com/Reports/Core/RDC_Inventory_Core_Metrics_Metro_History.csv'
 DATA = []
 
@@ -72,18 +76,18 @@ def add_cors_headers():
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Origin, Accept, Content-Type, X-Requested-With, X-CSRF-Token'
 
-@route('/', method=('GET',))
+@route(f'{BASE_URL}/', method=('GET',))
 def index():
     market = request.query.get('market', '')
-    return template('chart.html', BASE_URL='http://localhost:9876', market=market)
+    return template('chart.html', BASE_URL=BASE_URL, market=market)
 
-@route('/markets')
+@route(f'{BASE_URL}/markets')
 def hello():
     filter_results = request.params.get('filter', 'false') == 'true'
     markets = get_markets(filter_results)
     return json.dumps(markets)
 
-@route('/markets/data', method=('POST',))
+@route(f'{BASE_URL}/markets/data', method=('POST',))
 def get_market_data():
     if not DATA:
         load_data()
@@ -93,5 +97,7 @@ def get_market_data():
     return json.dumps(market_data)
 
 
-# run(host='localhost', port=9876, debug=True)
+if __name__ == '__main__' and ENV == 'development':
+    run(host='localhost', port=9876, debug=True)
+
 application = default_app()
