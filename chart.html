@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <title>Real Estate Data</title>
+    <style>
+      #canvas-container {
+        max-width: 1240px;
+      }
+      span.key {
+        display: inline-block;
+        width: 2rem;
+        height: 1rem;
+      }
+      span.no-bubble-highlight {
+        background-color: #877328;
+      }
+      span.bubble-highlight {
+        background-color: #ed1c24;
+      }
+      span.no-bubble {
+        background-color: #d5ceb4;
+      }
+      span.bubble {
+        background-color: #f9b0b2;
+      }
+    </style>
+  </head>
+  <script type="module">
+    const BASE_URL = "{{BASE_URL}}";
+    const uriMarket = "{{market}}";
+    const config = {
+      plugins: [ChartDataLabels],
+      type: "bar",
+      data: {},
+      options: {
+        layout: {
+          padding: 20,
+          width: 1240,
+        },
+        scales: {
+          x: {
+            grid: {
+              display: false,
+            },
+          },
+        },
+      },
+    };
+
+    import {
+      html,
+      render,
+    } from "https://unpkg.com/htm/preact/index.mjs?module";
+
+    import {
+      useEffect,
+      useState,
+      useRef,
+    } from "https://unpkg.com/preact/hooks/dist/hooks.module.js?module";
+
+    const MarketSelector = () => {
+      const [markets, setMarkets] = useState(["Loading..."]);
+      const [selectedMarket, setSelectedMarket] = useState("");
+      const selectElem = useRef(null);
+
+      useEffect(() => {
+        getMarkets();
+      }, []);
+
+      useEffect(() => {
+        if (uriMarket && markets.includes(uriMarket)) {
+          getMarketData();
+        }
+      }, [markets]);
+
+      const getMarkets = async (filter = false) => {
+        const response = await fetch(`${BASE_URL}/markets?filter=${filter}`);
+        const json = await response.json();
+        setMarkets(json);
+      };
+
+      const mapped = markets.map((i) => {
+        if (
+          uriMarket !== "" &&
+          markets.includes(uriMarket) &&
+          i === uriMarket
+        ) {
+          return html`<option val="${i}" selected>${i}</option>`;
+        }
+        return html`<option val="${i}">${i}</option>`;
+      });
+
+      const updateChart = (data) => {
+        data.sort((d) => parseInt(d.month));
+        chart.data.labels = data.map((r) =>
+          new Date(
+            `${r.month.slice(0, 4)}-${r.month.slice(4, 6)}`
+          ).toLocaleDateString("en-US", {
+            month: "short",
+            year: "numeric",
+            timeZone: "UTC",
+          })
+        );
+        // chart.data.labels = data.map((r) =>
+        //   r.month.endsWith("01") ? r.month.slice(0, 4) : ""
+        // );
+        const lastDataPoint = data[data.length - 1];
+        const lastDataPointMonth = lastDataPoint.month.slice(4, 6);
+        const lastDataPointYear = parseInt(lastDataPoint.month.slice(0, 4));
+        const prePandemicPoint = data.find(
+          (r) => r.month === `${lastDataPointYear - 3}${lastDataPointMonth}`
+        );
+
+        const isBubble =
+          parseInt(lastDataPoint.count) > parseInt(prePandemicPoint.count);
+        const highlightColor = isBubble ? "#ed1c24" : "#877328";
+        const defaultColor = isBubble ? "#f9b0b2" : "#d5ceb4";
+
+        chart.data.datasets = [
+          {
+            label: "Active Listings",
+            backgroundColor: data.map((r) =>
+              r.month.endsWith(lastDataPointMonth)
+                ? highlightColor
+                : defaultColor
+            ),
+            data: data.map((r) => parseInt(r.count)),
+            datalabels: {
+              color: "#7b7b7b",
+              anchor: "end",
+              align: "end",
+              font: {
+                size: 16,
+                weight: "bold",
+              },
+              display: (ctx) => data[ctx.dataIndex].month.endsWith("12"),
+              formatter: (val) => val.toLocaleString("en-US"),
+            },
+          },
+        ];
+        chart.update();
+      };
+
+      const getMarketData = async (e) => {
+        const val = e ? e.target.value : uriMarket;
+        if (val) {
+          const response = await fetch(`${BASE_URL}/markets/data`, {
+            method: "POST",
+            body: JSON.stringify({
+              market: val,
+            }),
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+          const json = await response.json();
+          updateChart(json);
+        }
+        setSelectedMarket(val);
+      };
+
+      const filterResults = (e) => {
+        const ckBox = e.currentTarget;
+        if (ckBox.checked) {
+          getMarkets(true);
+        } else {
+          getMarkets();
+        }
+      };
+
+      const gmapLink = (market) => {
+        if (market) {
+          const cities = market.split(", ")[0];
+          const states = market.split(", ")[1];
+          return html`<a
+            style="padding-left: 12px; padding-right: 12px;"
+            href="https://google.com/maps/search/${cities.split(
+              "-"
+            )[0]},${states.split("-")[0]}"
+            target="_blank"
+            >Map Link</a
+          >`;
+        }
+        return "";
+      };
+
+      const permaLink = (market) => {
+        if (market) {
+          return html`<a
+            style="padding-left: 12px; padding-right: 12px;"
+            href="?market=${market}"
+            >Permalink</a
+          >`;
+        }
+        return "";
+      };
+
+      return html`<select
+          id="market"
+          onChange=${getMarketData}
+          ref=${selectElem}
+        >
+          ${mapped}
+        </select>
+        ${gmapLink(selectedMarket)} ${permaLink(selectedMarket)}
+        <input type="checkbox" onChange=${filterResults} /> 100+ average
+        listings `;
+    };
+    const ChartCanvas = () => {
+      return html`<div id="canvas-container">
+        <canvas id="my-chart"></canvas>
+      </div>`;
+    };
+
+    const App = () => html`<${MarketSelector} /><${ChartCanvas} />`;
+
+    render(html`<${App}></${App}>`, document.querySelector("main"));
+
+    const chart = new Chart(document.getElementById("my-chart"), config);
+  </script>
+  <body>
+    <main></main>
+    <footer>
+      <div>
+        <em
+          >Based on similar work by
+          <a href="https://fortune.com/author/lance-lambert/"
+            >Lance Lambert</a
+          ></em
+        >
+      </div>
+      <div>
+        <span class="bubble key"></span
+        ><span class="bubble-highlight key"></span>
+        Increasing inventory
+        <em
+          >(Defined as more listings in most recent month than in the same month
+          3 years ago.)</em
+        >
+      </div>
+      <div>
+        <span class="no-bubble key"></span
+        ><span class="no-bubble-highlight key"></span>
+        Constrained inventory
+      </div>
+    </footer>
+  </body>
+</html>
