@@ -51,7 +51,7 @@ def get_markets(filter_results):
 #     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
 #     # response.headers['Access-Control-Allow-Headers'] = ''
 
-@route('/<:re:.*>', method='OPTIONS')
+@route(f'{BASE_URL}/<:re:.*>', method='OPTIONS')
 def enable_cors_generic_route():
     """
     This route takes priority over all others. So any request with an OPTIONS
