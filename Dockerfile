@@ -10,4 +10,8 @@ ENV ACTIVE_LISTINGS_ENV=production
 
 RUN useradd -s /bin/bash www
 
+RUN mkdir -p /var/log/uswgi
+
+RUN chown -R www:www /var/log/uwsgi
+
 CMD [ "uwsgi", "/usr/src/app/uwsgi.ini" ]
