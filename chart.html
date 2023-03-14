@@ -11,6 +11,9 @@
       #canvas-container {
         max-width: 1240px;
       }
+      select#market {
+        min-width: 20rem;
+      }
       span.key {
         display: inline-block;
         width: 2rem;
@@ -28,11 +31,40 @@
       span.bubble {
         background-color: #f9b0b2;
       }
+      label[for="state-selector"] {
+        margin-left: 1rem;
+        padding-right: 0.25rem;
+      }
+      .filters {
+        display: inline-block;
+        background-color: rgba(222, 184, 135, 0.6);
+        padding-inline: 0.5rem;
+        padding-block: 0.25rem;
+        margin: 0.5rem;
+        border-color: rgb(133, 55, 71);
+        border-style: solid;
+        border-radius: 5px;
+        border-width: 1px;
+      }
+      .filters > legend {
+        font-size: 0.9rem;
+      }
     </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "preact": "https://esm.sh/preact@10.12.1",
+          "preact/hooks": "https://esm.sh/preact@10.12.1/hooks?external=preact",
+          "@preact/signals": "https://esm.sh/@preact/signals@1.1.3?external=preact",
+          "htm": "https://esm.sh/htm@3.1.1"
+        }
+      }
+    </script>
   </head>
   <script type="module">
     const BASE_URL = "{{BASE_URL}}";
-    const uriMarket = "{{market}}";
+    const MARKET = `{{market}}`;
+    const MARKETS = JSON.parse(`{{!markets}}`);
     const config = {
       plugins: [ChartDataLabels],
       type: "bar",
@@ -52,51 +84,58 @@
       },
     };
 
-    import {
-      html,
-      render,
-    } from "https://unpkg.com/htm/preact/index.mjs?module";
+    import { h, render } from "preact";
+    import { signal, computed } from "@preact/signals";
+    import htm from "htm";
 
-    import {
-      useEffect,
-      useState,
-      useRef,
-    } from "https://unpkg.com/preact/hooks/dist/hooks.module.js?module";
+    const html = htm.bind(h);
 
-    const MarketSelector = () => {
-      const [markets, setMarkets] = useState(["Loading..."]);
-      const [selectedMarket, setSelectedMarket] = useState("");
-      const selectElem = useRef(null);
+    const markets = signal(MARKETS);
+    const selectedMarket = signal(MARKET);
 
-      useEffect(() => {
-        getMarkets();
-      }, []);
-
-      useEffect(() => {
-        if (uriMarket && markets.includes(uriMarket)) {
-          getMarketData();
-        }
-      }, [markets]);
-
-      const getMarkets = async (filter = false) => {
-        const response = await fetch(`${BASE_URL}/markets?filter=${filter}`);
-        const json = await response.json();
-        setMarkets(json);
-      };
-
-      const mapped = markets.map((i) => {
+    const mapped = computed(() => {
+      return markets.value.map((i) => {
         if (
-          uriMarket !== "" &&
-          markets.includes(uriMarket) &&
-          i === uriMarket
+          selectedMarket.value !== "" &&
+          markets.value.includes(selectedMarket.value) &&
+          i === selectedMarket.value
         ) {
           return html`<option val="${i}" selected>${i}</option>`;
         }
         return html`<option val="${i}">${i}</option>`;
       });
+    });
+
+    const MarketSelector = () => {
+      const getMarkets = async (
+        hundred = false,
+        state = false,
+        stateValue = ""
+      ) => {
+        const params = [];
+        if (hundred) {
+          params.push("filters=hundred");
+        }
+        if (state && stateValue) {
+          params.push("filters=state");
+          params.push(`state=${stateValue}`);
+        }
+        markets.value = ["Loading..."];
+        const response = await fetch(`${BASE_URL}/markets?${params.join("&")}`);
+        const json = await response.json();
+        markets.value = json;
+      };
 
       const updateChart = (data) => {
         data.sort((d) => parseInt(d.month));
+        chart.options.plugins = {
+          ...config.plugins,
+          title: {
+            text: selectedMarket.value,
+            display: true,
+            font: { size: 18 },
+          },
+        };
         chart.data.labels = data.map((r) =>
           new Date(
             `${r.month.slice(0, 4)}-${r.month.slice(4, 6)}`
@@ -138,7 +177,8 @@
                 size: 16,
                 weight: "bold",
               },
-              display: (ctx) => data[ctx.dataIndex].month.endsWith("12"),
+              display: (ctx) =>
+                data[ctx.dataIndex].month.endsWith(lastDataPointMonth),
               formatter: (val) => val.toLocaleString("en-US"),
             },
           },
@@ -147,30 +187,33 @@
       };
 
       const getMarketData = async (e) => {
-        const val = e ? e.target.value : uriMarket;
+        const val = e ? e.target.value : selectedMarket.value;
         if (val) {
-          const response = await fetch(`${BASE_URL}/markets/data`, {
-            method: "POST",
-            body: JSON.stringify({
-              market: val,
-            }),
-            headers: {
-              "Content-Type": "application/json",
-            },
-          });
+          const response = await fetch(
+            `${BASE_URL}/markets/data?market=${val}&format=json`
+          );
           const json = await response.json();
+          selectedMarket.value = val;
           updateChart(json);
+        } else {
+          selectedMarket.value = val;
+          // updateChart({})???
         }
-        setSelectedMarket(val);
       };
 
       const filterResults = (e) => {
-        const ckBox = e.currentTarget;
-        if (ckBox.checked) {
-          getMarkets(true);
-        } else {
-          getMarkets();
-        }
+        const filterArea = e.currentTarget.closest(".filters");
+        const filterByHundred = filterArea.querySelector(
+          'input[type="checkbox"]'
+        );
+        const filterByState = filterArea.querySelector(
+          'select[name="state-selector"]'
+        );
+        getMarkets(
+          filterByHundred.checked,
+          filterByState.value !== "",
+          filterByState.value
+        );
       };
 
       const gmapLink = (market) => {
@@ -200,16 +243,82 @@
         return "";
       };
 
-      return html`<select
-          id="market"
-          onChange=${getMarketData}
-          ref=${selectElem}
-        >
-          ${mapped}
+      const stateSelector = () => {
+        const states = [
+          "AL",
+          "AK",
+          "AZ",
+          "AR",
+          "CA",
+          "CO",
+          "CT",
+          "DE",
+          "FL",
+          "GA",
+          "HI",
+          "ID",
+          "IL",
+          "IN",
+          "IA",
+          "KS",
+          "KY",
+          "LA",
+          "ME",
+          "MD",
+          "MA",
+          "MI",
+          "MN",
+          "MS",
+          "MO",
+          "MT",
+          "NE",
+          "NV",
+          "NH",
+          "NJ",
+          "NM",
+          "NY",
+          "NC",
+          "ND",
+          "OH",
+          "OK",
+          "OR",
+          "PA",
+          "RI",
+          "SC",
+          "SD",
+          "TN",
+          "TX",
+          "UT",
+          "VT",
+          "VA",
+          "WA",
+          "WV",
+          "WI",
+          "WY",
+        ];
+        return html`
+          <label for="state-selector">State</label>
+          <select
+            onChange=${filterResults}
+            name="state-selector"
+            name="state-selector"
+          >
+            <option value=""></option>
+            ${states.map((s) => html`<option value=${s}>${s}</option>`)}
+          </select>
+        `;
+      };
+
+      return html`<select id="market" onChange=${getMarketData}>
+          ${mapped.value}
         </select>
-        ${gmapLink(selectedMarket)} ${permaLink(selectedMarket)}
-        <input type="checkbox" onChange=${filterResults} /> 100+ average
-        listings `;
+        <fieldset class="filters">
+          <legend>Filters</legend>
+          ${stateSelector()}
+          <input type="checkbox" onChange=${filterResults} />
+          100+ average listings
+        </fieldset>
+        ${gmapLink(selectedMarket.value)} ${permaLink(selectedMarket.value)}`;
     };
     const ChartCanvas = () => {
       return html`<div id="canvas-container">

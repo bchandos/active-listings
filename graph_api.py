@@ -3,7 +3,7 @@ import os
 from csv import DictReader
 
 import requests
-from bottle import default_app, hook, request, response, route, run, template
+from bottle import default_app, hook, request, response, route, run, template, static_file
 
 ENV = os.environ.get('ACTIVE_LISTINGS_ENV', 'development')
 
@@ -29,19 +29,24 @@ def load_data():
         for row in reader:
             DATA.append(row)
 
-def get_markets(filter_results):
+def get_markets(*filters, state=None):
     if not DATA:
         load_data()
     # Now we assume DATA is populated...
     all_markets = sorted(set(r['cbsa_title'] for r in DATA))
-    if filter_results:
+    filtered_markets = []
+    if state and 'state' in filters:
+        filtered_markets = [m for m in all_markets if f', {state}' in m or f'-{state}-' in m or m.endswith(f'-{state}')]
+    if 'hundred' in filters:
+        op_markets = filtered_markets or all_markets
         filtered_markets = []
-        for market in [m for m in all_markets if m]:
+        for market in [m for m in op_markets if m]:
             market_data = [r for r in DATA if r['cbsa_title'] == market]
             if sum([int(r['active_listing_count']) for r in market_data if r['active_listing_count']]) / len(market_data) > 100:
                 filtered_markets.append(market)
-        return filtered_markets
-    return all_markets
+    if filtered_markets and filtered_markets[0] != '':
+        filtered_markets = [''] + filtered_markets
+    return filtered_markets or all_markets
     
 
 # @hook('after_request') 
@@ -76,28 +81,39 @@ def add_cors_headers():
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Origin, Accept, Content-Type, X-Requested-With, X-CSRF-Token'
 
-@route(f'{BASE_URL}/', method=('GET',))
+@route(f'{BASE_URL}/', method=('GET','POST'))
 def index():
-    market = request.query.get('market', '')
-    return template('chart.html', BASE_URL=BASE_URL, market=market)
+    market = request.params.get('market', '')
+    markets = get_markets(None)
+    return template(
+        'chart.html', 
+        BASE_URL=BASE_URL, 
+        markets=json.dumps(markets),
+        market=market,
+    )
 
 @route(f'{BASE_URL}/markets')
 def hello():
-    filter_results = request.params.get('filter', 'false') == 'true'
-    markets = get_markets(filter_results)
+    filters = request.params.getlist('filters')
+    state_val = request.params.get('state')
+    if not filters or not set(filters) <= set(['hundred', 'state']):
+        filters = None
+    if 'state' in filters and not state_val:
+        _ = filters.pop('state')
+    
+    markets = get_markets(*filters, state=state_val)
     return json.dumps(markets)
 
-@route(f'{BASE_URL}/markets/data', method=('POST',))
+@route(f'{BASE_URL}/markets/data')
 def get_market_data():
     if not DATA:
         load_data()
     # Now we assume DATA is populated...
-    market = request.json.get('market')
+    market = request.params.get('market')
     market_data = [{'month': r['month_date_yyyymm'], 'count': r['active_listing_count']} for r in DATA if r['cbsa_title'] == market]
     return json.dumps(market_data)
 
-
-if __name__ == '__main__' and ENV == 'development':
+if __name__ == '__main__' and ENV != 'production':
     run(host='localhost', port=9876, debug=True)
 
 application = default_app()
