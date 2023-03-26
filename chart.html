@@ -331,6 +331,10 @@
     render(html`<${App}></${App}>`, document.querySelector("main"));
 
     const chart = new Chart(document.getElementById("my-chart"), config);
+    // On page load, there may be a market value and the chart will only be updated
+    // on change event of select. There is undoubtedly a better solution here,
+    // but didn't want to mess around with hooks ATM.
+    document.querySelector("select#market").dispatchEvent(new Event("change"));
   </script>
   <body>
     <main></main>
