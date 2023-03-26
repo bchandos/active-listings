@@ -195,6 +195,14 @@
           const json = await response.json();
           selectedMarket.value = val;
           updateChart(json);
+          const url = new URL(window.location);
+          if (
+            url.searchParams.get("market") &&
+            url.searchParams.get("market") !== val
+          ) {
+            url.searchParams.delete("market");
+            window.history.replaceState({}, "", url);
+          }
         } else {
           selectedMarket.value = val;
           // updateChart({})???
