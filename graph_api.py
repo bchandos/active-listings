@@ -3,7 +3,7 @@ import os
 from csv import DictReader
 
 import requests
-from bottle import default_app, hook, request, response, route, run, template, static_file
+from bottle import default_app, hook, request, response, route, run, template 
 
 ENV = os.environ.get('ACTIVE_LISTINGS_ENV', 'development')
 
@@ -97,9 +97,9 @@ def hello():
     filters = request.params.getlist('filters')
     state_val = request.params.get('state')
     if not filters or not set(filters) <= set(['hundred', 'state']):
-        filters = None
+        filters = []
     if 'state' in filters and not state_val:
-        _ = filters.pop('state')
+        filters = filter(lambda x: x != 'state', filters)
     
     markets = get_markets(*filters, state=state_val)
     return json.dumps(markets)
@@ -110,7 +110,13 @@ def get_market_data():
         load_data()
     # Now we assume DATA is populated...
     market = request.params.get('market')
-    market_data = [{'month': r['month_date_yyyymm'], 'count': r['active_listing_count']} for r in DATA if r['cbsa_title'] == market]
+    market_data = [
+        {
+            'month': r['month_date_yyyymm'], 
+            'count': r['active_listing_count'],
+            'days': r['median_days_on_market'],
+            'ppsf': r['median_listing_price_per_square_foot']
+        } for r in DATA if r['cbsa_title'] == market]
     return json.dumps(market_data)
 
 if __name__ == '__main__' and ENV != 'production':

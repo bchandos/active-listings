@@ -2,3 +2,4 @@ venv/
 env.dev.js
 *.csv
 TODO.md
+pyrightconfig.json
