@@ -140,7 +140,6 @@
 
     const updateChart = () => {
       const data = marketData.value;
-      data.sort((a, b) => a.month > b.month);
       chart.options.plugins = {
         ...config.plugins,
         title: {

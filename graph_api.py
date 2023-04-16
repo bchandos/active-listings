@@ -117,6 +117,7 @@ def get_market_data():
             'days': r['median_days_on_market'],
             'ppsf': r['median_listing_price_per_square_foot']
         } for r in DATA if r['cbsa_title'] == market]
+    market_data.sort(key=lambda x: x['month'])
     return json.dumps(market_data)
 
 if __name__ == '__main__' and ENV != 'production':
