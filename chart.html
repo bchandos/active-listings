@@ -117,6 +117,8 @@
       });
     });
 
+    const average = (array) => array.reduce((a, b) => a + b) / array.length;
+
     const MarketSelector = () => {
       const getMarkets = async (
         hundred = false,
@@ -156,20 +158,17 @@
             timeZone: "UTC",
           }),
         );
-        // chart.data.labels = data.map((r) =>
-        //   r.month.endsWith("01") ? r.month.slice(0, 4) : ""
-        // );
         const lastDataPoint = data[data.length - 1];
         const lastDataPointMonth = lastDataPoint.month.slice(4, 6);
-        const lastDataPointYear = parseInt(lastDataPoint.month.slice(0, 4));
-        const prePandemicPoint = data.find(
-          (r) => r.month === `${lastDataPointYear - 4}${lastDataPointMonth}`,
+        const allPreviousMonthlyTotals = data.filter(
+          (r) => r.month.endsWith(lastDataPointMonth) && r !== lastDataPoint,
         );
 
-        const isBubble =
-          parseInt(lastDataPoint.count) > parseInt(prePandemicPoint.count);
-        const highlightColor = isBubble ? "#ed1c24" : "#877328";
-        const defaultColor = isBubble ? "#f9b0b2" : "#d5ceb4";
+        const isAboveAverage =
+          parseInt(lastDataPoint.count) >
+          average(allPreviousMonthlyTotals.map((t) => parseInt(t.count)));
+        const highlightColor = isAboveAverage ? "#ed1c24" : "#877328";
+        const defaultColor = isAboveAverage ? "#f9b0b2" : "#d5ceb4";
         const labelLookup = {
           count: "Active Listings",
           days: "Median Days on Market",
@@ -417,8 +416,8 @@
         ><span class="bubble-highlight key"></span>
         Increasing inventory
         <em
-          >(Defined as more listings in most recent month than in the same month
-          4 years ago.)</em
+          >(Defined as more listings this month than the average of all previous
+          years.)</em
         >
       </div>
       <div>
