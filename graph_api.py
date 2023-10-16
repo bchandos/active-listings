@@ -115,7 +115,8 @@ def get_market_data():
             'month': r['month_date_yyyymm'], 
             'count': r['active_listing_count'],
             'days': r['median_days_on_market'],
-            'ppsf': r['median_listing_price_per_square_foot']
+            'ppsf': r['median_listing_price_per_square_foot'],
+            'red': r['price_reduced_count'],
         } for r in DATA if r['cbsa_title'] == market]
     market_data.sort(key=lambda x: x['month'])
     return json.dumps(market_data)
