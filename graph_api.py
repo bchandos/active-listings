@@ -113,15 +113,20 @@ def get_market_data():
     market_data = [
         {
             'month': r['month_date_yyyymm'], 
+            'month_no': int(r['month_date_yyyymm'][-2:]),
+            'year_no': int(r['month_date_yyyymm'][:4]),
+            'date_no': int(r['month_date_yyyymm']),
             'count': r['active_listing_count'],
             'days': r['median_days_on_market'],
             'ppsf': r['median_listing_price_per_square_foot'],
             'red': r['price_reduced_count'],
+        # market['month_no'] = int(market['month'][-2:])
+        # market['year_no'] = int(market['month'][:4])
         } for r in DATA if r['cbsa_title'] == market]
     market_data.sort(key=lambda x: x['month'])
     return json.dumps(market_data)
 
 if __name__ == '__main__' and ENV != 'production':
-    run(host='localhost', port=9876, debug=True)
+    run(host='localhost', port=9876, debug=True, reloader=True, interval=1)
 
 application = default_app()

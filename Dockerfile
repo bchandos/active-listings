@@ -10,4 +10,4 @@ ENV ACTIVE_LISTINGS_ENV=production
 
 RUN useradd -s /bin/bash www
 
-CMD [ "uwsgi", "/usr/src/app/uwsgi.ini" ]
+CMD uwsgi /usr/src/app/uwsgi.ini 2>&1 | logger -n 10.89.0.116 -P 1514 -d

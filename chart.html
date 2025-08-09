@@ -27,12 +27,20 @@
       background-color: #877328;
     }
 
+    span.mid-bubble-highlight {
+      background-color: #b55f00;
+    }
+
     span.bubble-highlight {
       background-color: #ed1c24;
     }
 
     span.no-bubble {
       background-color: #d5ceb4;
+    }
+
+    span.mid-bubble {
+      background-color: #e9c0a7;
     }
 
     span.bubble {
@@ -161,15 +169,26 @@
       );
       const lastDataPoint = data[data.length - 1];
       const lastDataPointMonth = lastDataPoint.month.slice(4, 6);
-      const allPreviousMonthlyTotals = data.filter(
-        (r) => r.month.endsWith(lastDataPointMonth) && r !== lastDataPoint,
+      const allPrePandemicTotals = data.filter(
+        (r) => r.month.endsWith(lastDataPointMonth) && (r.date_no < 202003),
       );
 
-      const isAboveAverage =
-        parseInt(lastDataPoint.count) >
-        average(allPreviousMonthlyTotals.map((t) => parseInt(t.count)));
-      const highlightColor = isAboveAverage ? "#ed1c24" : "#877328";
-      const defaultColor = isAboveAverage ? "#f9b0b2" : "#d5ceb4";
+      const lastDataPointCount = parseInt(lastDataPoint.count);
+      const avgPrePandemic = average(allPrePandemicTotals.map((t) => parseInt(t.count)))
+      const isAboveAverage = lastDataPointCount > avgPrePandemic;
+      const isNearAverage = lastDataPointCount >= (avgPrePandemic * 0.9) && lastDataPointCount <= (avgPrePandemic * 1.1);
+      let highlightColor;
+      let defaultColor;
+      if (isNearAverage) {
+        highlightColor = "#b55f00";
+        defaultColor = "#e9c0a7";
+      } else if (isAboveAverage) {
+        highlightColor = "#ed1c24";
+        defaultColor = "#f9b0b2";
+      } else {
+        highlightColor = "#877328";
+        defaultColor = "#d5ceb4";
+      }
       const labelLookup = {
         count: "Active Listings",
         days: "Median Days on Market",
@@ -417,8 +436,12 @@
     <div>
       <span class="bubble key"></span><span class="bubble-highlight key"></span>
       Increasing inventory
-      <em>(Defined as more listings this month than the average of all previous
+      <em>(Defined as 10% more listings this month than the average of all pre-March 2020
         years.)</em>
+    </div>
+    <div>
+      <span class="mid-bubble key"></span><span class="mid-bubble-highlight key"></span>
+      Within 10% of pre-March 2020 inventory
     </div>
     <div>
       <span class="no-bubble key"></span><span class="no-bubble-highlight key"></span>
